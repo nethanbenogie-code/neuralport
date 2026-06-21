@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/types.ts","./src/components/ChatInput.tsx","./src/components/MarkdownRenderer.tsx","./src/components/Message.tsx","./src/components/NeuronCorner.tsx","./src/components/SettingsModal.tsx","./src/components/Sidebar.tsx","./src/hooks/useChat.ts","./src/lib/api.ts","./src/lib/storage.ts"],"version":"5.9.3"}
