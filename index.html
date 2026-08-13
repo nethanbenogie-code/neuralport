@@ -1,14 +1,1094 @@
-<!doctype html>
-<html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/neuron.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a0b0f" />
-    <title>Neuro Chat</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Local Chat UI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161922;
+    --panel2: #1d212c;
+    --border: #2a2f3a;
+    --text: #e6e8ef;
+    --muted: #8b93a5;
+    --accent: #6ea8fe;
+    --accent2: #7cf0c0;
+    --danger: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+  }
+  #sidebar {
+    width: 280px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    overflow-y: auto;
+  }
+  #sidebar h1 {
+    font-size: 15px;
+    margin: 0 0 8px;
+    color: var(--accent);
+  }
+  label {
+    font-size: 12px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+  }
+  select, input, textarea {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  .provider-block { display: none; border-top: 1px solid var(--border); padding-top: 10px; }
+  .provider-block.active { display: block; }
+  .status-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    margin-right: 6px;
+  }
+  .status-dot.ok { background: var(--accent2); }
+  .status-dot.bad { background: var(--danger); }
+  #testBtn, #clearBtn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #testBtn:hover, #clearBtn:hover { border-color: var(--accent); }
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .msg {
+    max-width: 720px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    line-height: 1.5;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: #0f1115;
+  }
+  .msg.assistant {
+    align-self: flex-start;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+  }
+  .msg.system {
+    align-self: center;
+    color: var(--muted);
+    font-size: 12px;
+    background: none;
+  }
+  .msg.error { border-color: var(--danger); color: var(--danger); }
+  #inputBar {
+    border-top: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    gap: 10px;
+  }
+  #inputBar textarea {
+    flex: 1;
+    margin-bottom: 0;
+    min-height: 44px;
+    max-height: 160px;
+  }
+  #sendBtn {
+    background: var(--accent);
+    color: #0f1115;
+    border: none;
+    border-radius: 8px;
+    padding: 0 20px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #sendBtn:disabled { opacity: 0.5; cursor: default; }
+  .hint { font-size: 11px; color: var(--muted); }
+
+  .code-block {
+    margin: 8px 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #0b0d12;
+  }
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .copy-btn:hover { border-color: var(--accent); }
+  .copy-btn.copied { color: var(--accent2); border-color: var(--accent2); }
+  .code-block pre {
+    margin: 0;
+    padding: 10px 12px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .code-block code {
+    font-family: "SF Mono", Consolas, Menlo, monospace;
+    white-space: pre;
+  }
+
+  #attachmentsBar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 24px;
+  }
+  #attachmentsBar:empty { padding: 0; }
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    max-width: 220px;
+  }
+  .chip img {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
+  }
+  .chip span.name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chip .remove {
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 700;
+    padding: 0 2px;
+  }
+  .chip .remove:hover { color: var(--danger); }
+  #attachBtn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    font-size: 16px;
+    width: 44px;
+    cursor: pointer;
+  }
+  #attachBtn:hover { border-color: var(--accent); }
+  #inputBar.dragover {
+    outline: 2px dashed var(--accent);
+    outline-offset: -2px;
+  }
+  .msg img.attached-image {
+    max-width: 260px;
+    border-radius: 8px;
+    margin-top: 8px;
+    display: block;
+  }
+
+  #sessionList {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .session-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12.5px;
+    border: 1px solid transparent;
+  }
+  .session-item:hover { background: var(--panel2); }
+  .session-item.active { background: var(--panel2); border-color: var(--accent); }
+  .session-item .title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .session-item .del {
+    color: var(--muted);
+    font-weight: 700;
+    padding: 0 3px;
+  }
+  .session-item .del:hover { color: var(--danger); }
+
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    max-width: 320px;
+    background: var(--panel2);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 50;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  #toast.warn { border-color: #f0b429; }
+  #toast.danger { border-color: var(--danger); }
+  .msg-meta {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: right;
+    opacity: 0.8;
+  }
+  .msg.user .msg-meta { color: rgba(15,17,21,0.6); }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h1 id="appTitle" contenteditable="true" spellcheck="false" title="Click to rename">Chat UI</h1>
+
+  <div>
+    <button id="newChatBtn" style="width:100%; background:var(--accent); color:#0f1115; border:none; border-radius:8px; padding:8px; font-weight:600; cursor:pointer;">+ New Chat</button>
+  </div>
+  <div id="sessionList"></div>
+  <div class="hint" id="sizeIndicator"></div>
+
+  <div>
+    <label>Provider</label>
+    <select id="providerSelect">
+      <option value="ollama">Ollama (local / cloud model)</option>
+      <option value="lmstudio">LM Studio</option>
+      <option value="anthropic">Anthropic</option>
+    </select>
+  </div>
+
+  <div class="provider-block" data-provider="ollama">
+    <label>Ollama base URL</label>
+    <input id="ollamaUrl" placeholder="http://localhost:11434">
+    <label>Model (add :cloud for Ollama cloud models)</label>
+    <input id="ollamaModel" placeholder="nemotron-3-ultra:cloud">
+  </div>
+
+  <div class="provider-block" data-provider="lmstudio">
+    <label>LM Studio base URL</label>
+    <input id="lmstudioUrl" placeholder="http://localhost:1234/v1">
+    <label>Model</label>
+    <input id="lmstudioModel" placeholder="local-model">
+  </div>
+
+  <div class="provider-block" data-provider="anthropic">
+    <label>Anthropic API key</label>
+    <input id="anthropicKey" type="password" placeholder="sk-ant-...">
+    <label>Model</label>
+    <input id="anthropicModel" placeholder="claude-sonnet-5">
+    <div class="hint">Key is stored only in this browser's localStorage.</div>
+  </div>
+
+  <div>
+    <label>System prompt (optional)</label>
+    <textarea id="systemPrompt" placeholder="You are a helpful assistant."></textarea>
+  </div>
+
+  <div style="border-top: 1px solid var(--border); padding-top: 10px;">
+    <label>Generation (applies to any provider)</label>
+    <div style="display:flex; gap:8px;">
+      <div style="flex:1;">
+        <label style="margin-bottom:2px;">Temperature</label>
+        <input id="temperature" type="number" step="0.1" min="0" max="2" style="margin-bottom:6px;">
+      </div>
+      <div style="flex:1;">
+        <label style="margin-bottom:2px;">Top P</label>
+        <input id="topP" type="number" step="0.05" min="0" max="1" style="margin-bottom:6px;">
+      </div>
+    </div>
+    <label style="margin-bottom:2px;">Max output tokens</label>
+    <input id="maxTokens" type="number" step="64" min="1">
+  </div>
+
+  <div style="display:flex; gap:8px;">
+    <button id="testBtn"><span class="status-dot" id="statusDot"></span>Test connection</button>
+    <button id="clearBtn">Clear chat</button>
+  </div>
+  <div class="hint" id="statusText"></div>
+</div>
+
+<div id="main">
+  <div id="chat"></div>
+  <div id="attachmentsBar"></div>
+  <div id="inputBar">
+    <input type="file" id="fileInput" multiple hidden
+      accept=".txt,.md,.py,.js,.jsx,.ts,.tsx,.json,.csv,.log,.html,.css,.java,.c,.cpp,.h,.sql,.sh,.yaml,.yml,.xml,image/*">
+    <button id="attachBtn" title="Attach file">📎</button>
+    <textarea id="userInput" placeholder="Send a message... (Enter to send, Shift+Enter for newline)"></textarea>
+    <span id="inputTokenCount" class="hint" style="align-self:center; min-width:64px; text-align:center; white-space:nowrap;"></span>
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const els = {
+  provider: document.getElementById('providerSelect'),
+  ollamaUrl: document.getElementById('ollamaUrl'),
+  ollamaModel: document.getElementById('ollamaModel'),
+  lmstudioUrl: document.getElementById('lmstudioUrl'),
+  lmstudioModel: document.getElementById('lmstudioModel'),
+  anthropicKey: document.getElementById('anthropicKey'),
+  anthropicModel: document.getElementById('anthropicModel'),
+  systemPrompt: document.getElementById('systemPrompt'),
+  appTitle: document.getElementById('appTitle'),
+  temperature: document.getElementById('temperature'),
+  topP: document.getElementById('topP'),
+  maxTokens: document.getElementById('maxTokens'),
+  fileInput: document.getElementById('fileInput'),
+  attachBtn: document.getElementById('attachBtn'),
+  attachmentsBar: document.getElementById('attachmentsBar'),
+  inputBar: document.getElementById('inputBar'),
+  newChatBtn: document.getElementById('newChatBtn'),
+  sessionList: document.getElementById('sessionList'),
+  sizeIndicator: document.getElementById('sizeIndicator'),
+  toast: document.getElementById('toast'),
+  chat: document.getElementById('chat'),
+  input: document.getElementById('userInput'),
+  inputTokenCount: document.getElementById('inputTokenCount'),
+  sendBtn: document.getElementById('sendBtn'),
+  testBtn: document.getElementById('testBtn'),
+  clearBtn: document.getElementById('clearBtn'),
+  statusDot: document.getElementById('statusDot'),
+  statusText: document.getElementById('statusText'),
+};
+
+const DEFAULTS = {
+  provider: 'ollama',
+  ollamaUrl: 'http://localhost:11434',
+  ollamaModel: 'nemotron-3-ultra:cloud',
+  lmstudioUrl: 'http://localhost:1234/v1',
+  lmstudioModel: 'local-model',
+  anthropicKey: '',
+  anthropicModel: 'claude-sonnet-5',
+  systemPrompt: '',
+  temperature: 0.7,
+  topP: 1,
+  maxTokens: 1024,
+  appTitle: 'Chat UI'
+};
+
+let history = []; // {role, text, attachments: [{type:'text'|'image', name, content|dataUrl, mime}]}
+let pendingAttachments = [];
+let sessions = [];
+let activeSessionId = null;
+
+// Rough size thresholds (char count as a stand-in for tokens, ~4 chars/token).
+// These are approximations, not exact model limits.
+const WARN_CHARS = 24000;   // ~6k tokens: soft notice
+const DANGER_CHARS = 60000; // ~15k tokens: stronger notice
+
+function loadSettings() {
+  const saved = JSON.parse(localStorage.getItem('chatui_settings') || '{}');
+  const s = { ...DEFAULTS, ...saved };
+  els.provider.value = s.provider;
+  els.ollamaUrl.value = s.ollamaUrl;
+  els.ollamaModel.value = s.ollamaModel;
+  els.lmstudioUrl.value = s.lmstudioUrl;
+  els.lmstudioModel.value = s.lmstudioModel;
+  els.anthropicKey.value = s.anthropicKey;
+  els.anthropicModel.value = s.anthropicModel;
+  els.systemPrompt.value = s.systemPrompt;
+  els.temperature.value = s.temperature;
+  els.topP.value = s.topP;
+  els.maxTokens.value = s.maxTokens;
+  els.appTitle.textContent = s.appTitle;
+  document.title = s.appTitle;
+  updateProviderBlocks();
+}
+
+function saveSettings() {
+  const s = {
+    provider: els.provider.value,
+    ollamaUrl: els.ollamaUrl.value.trim(),
+    ollamaModel: els.ollamaModel.value.trim(),
+    lmstudioUrl: els.lmstudioUrl.value.trim(),
+    lmstudioModel: els.lmstudioModel.value.trim(),
+    anthropicKey: els.anthropicKey.value.trim(),
+    anthropicModel: els.anthropicModel.value.trim(),
+    systemPrompt: els.systemPrompt.value,
+    temperature: parseFloat(els.temperature.value),
+    topP: parseFloat(els.topP.value),
+    maxTokens: parseInt(els.maxTokens.value, 10),
+    appTitle: els.appTitle.textContent.trim() || DEFAULTS.appTitle
+  };
+  if (isNaN(s.temperature)) s.temperature = DEFAULTS.temperature;
+  if (isNaN(s.topP)) s.topP = DEFAULTS.topP;
+  if (isNaN(s.maxTokens)) s.maxTokens = DEFAULTS.maxTokens;
+  localStorage.setItem('chatui_settings', JSON.stringify(s));
+  document.title = s.appTitle;
+  return s;
+}
+
+function updateProviderBlocks() {
+  document.querySelectorAll('.provider-block').forEach(b => {
+    b.classList.toggle('active', b.dataset.provider === els.provider.value);
+  });
+}
+
+[els.provider, els.ollamaUrl, els.ollamaModel, els.lmstudioUrl, els.lmstudioModel,
+ els.anthropicKey, els.anthropicModel, els.systemPrompt, els.temperature, els.topP, els.maxTokens].forEach(el => {
+  el.addEventListener('change', () => { saveSettings(); updateProviderBlocks(); });
+});
+els.appTitle.addEventListener('blur', saveSettings);
+els.appTitle.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); els.appTitle.blur(); }
+});
+
+function splitCodeBlocks(text) {
+  const regex = /```(\w*)\n?([\s\S]*?)```/g;
+  const parts = [];
+  let lastIndex = 0, match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+    parts.push({ type: 'code', lang: match[1], content: match[2].replace(/\n$/, '') });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) parts.push({ type: 'text', content: text.slice(lastIndex) });
+  return parts;
+}
+
+function renderContent(container, text) {
+  container.innerHTML = '';
+  splitCodeBlocks(text).forEach(part => {
+    if (part.type === 'text') {
+      if (!part.content) return;
+      const span = document.createElement('span');
+      span.style.whiteSpace = 'pre-wrap';
+      span.textContent = part.content;
+      container.appendChild(span);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'code-block';
+
+      const header = document.createElement('div');
+      header.className = 'code-header';
+      const lang = document.createElement('span');
+      lang.textContent = part.lang || 'code';
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(part.content).then(() => {
+          btn.textContent = 'Copied';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1200);
+        });
+      });
+      header.appendChild(lang);
+      header.appendChild(btn);
+
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      code.textContent = part.content;
+      pre.appendChild(code);
+
+      wrap.appendChild(header);
+      wrap.appendChild(pre);
+      container.appendChild(wrap);
+    }
+  });
+}
+
+function attachmentsAsText(attachments) {
+  return (attachments || [])
+    .filter(a => a.type === 'text')
+    .map(a => `\n\n--- ${a.name} ---\n\`\`\`\n${a.content}\n\`\`\``)
+    .join('');
+}
+
+function messageCharCount(text, attachments) {
+  let n = (text || '').length;
+  (attachments || []).forEach(a => {
+    if (a.type === 'text') n += (a.content || '').length;
+    else n += 1500; // rough flat cost for an image attachment
+  });
+  return n;
+}
+
+function estimateTokens(chars) {
+  return Math.max(0, Math.round(chars / 4));
+}
+
+function renderMessageBubble(div, role, text, attachments) {
+  renderContent(div, (text || '') + attachmentsAsText(attachments));
+  (attachments || []).filter(a => a.type === 'image').forEach(a => {
+    const img = document.createElement('img');
+    img.className = 'attached-image';
+    img.src = a.dataUrl;
+    img.alt = a.name;
+    div.appendChild(img);
+  });
+  if (role !== 'system') {
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.textContent = '~' + estimateTokens(messageCharCount(text, attachments)).toLocaleString() + ' tokens';
+    div.appendChild(meta);
+  }
+}
+
+function addMsg(role, content, attachments) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  renderMessageBubble(div, role, content, attachments);
+  els.chat.appendChild(div);
+  els.chat.scrollTop = els.chat.scrollHeight;
+  return div;
+}
+
+function setStatus(ok, text) {
+  els.statusDot.className = 'status-dot ' + (ok === null ? '' : ok ? 'ok' : 'bad');
+  els.statusText.textContent = text || '';
+}
+
+async function testConnection() {
+  const s = saveSettings();
+  setStatus(null, 'Testing...');
+  try {
+    if (s.provider === 'ollama') {
+      const r = await fetch(s.ollamaUrl.replace(/\/$/, '') + '/api/tags');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      setStatus(true, 'Ollama reachable.');
+    } else if (s.provider === 'lmstudio') {
+      const r = await fetch(s.lmstudioUrl.replace(/\/$/, '') + '/models');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      setStatus(true, 'LM Studio reachable.');
+    } else if (s.provider === 'anthropic') {
+      if (!s.anthropicKey) throw new Error('No API key set');
+      setStatus(true, 'Key set (verified on first message).');
+    }
+  } catch (err) {
+    setStatus(false, 'Failed: ' + err.message);
+  }
+}
+
+async function streamOllama(s, messages, onDelta) {
+  const res = await fetch(s.ollamaUrl.replace(/\/$/, '') + '/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: s.ollamaModel,
+      messages,
+      stream: true,
+      options: { temperature: s.temperature, top_p: s.topP, num_predict: s.maxTokens }
+    })
+  });
+  if (!res.ok || !res.body) throw new Error('Ollama HTTP ' + res.status);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const obj = JSON.parse(line);
+      if (obj.message?.content) onDelta(obj.message.content);
+      if (obj.done) return;
+    }
+  }
+}
+
+async function streamOpenAICompatible(baseUrl, model, messages, onDelta, gen) {
+  const res = await fetch(baseUrl.replace(/\/$/, '') + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model, messages, stream: true,
+      temperature: gen.temperature, top_p: gen.topP, max_tokens: gen.maxTokens
+    })
+  });
+  if (!res.ok || !res.body) throw new Error('LM Studio HTTP ' + res.status);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice(5).trim();
+      if (payload === '[DONE]') return;
+      try {
+        const obj = JSON.parse(payload);
+        const delta = obj.choices?.[0]?.delta?.content;
+        if (delta) onDelta(delta);
+      } catch (_) { /* ignore partial */ }
+    }
+  }
+}
+
+async function streamAnthropic(s, messages, onDelta) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': s.anthropicKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: s.anthropicModel,
+      max_tokens: s.maxTokens,
+      temperature: s.temperature,
+      top_p: s.topP,
+      system: s.systemPrompt || undefined,
+      messages,
+      stream: true
+    })
+  });
+  if (!res.ok || !res.body) {
+    const errText = await res.text().catch(() => '');
+    throw new Error('Anthropic HTTP ' + res.status + ' ' + errText.slice(0, 200));
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload) continue;
+      try {
+        const obj = JSON.parse(payload);
+        if (obj.type === 'content_block_delta' && obj.delta?.text) {
+          onDelta(obj.delta.text);
+        }
+      } catch (_) { /* ignore */ }
+    }
+  }
+}
+
+function fullTextFor(m) {
+  return (m.text || '') + attachmentsAsText(m.attachments);
+}
+
+// Ollama /api/chat: images go in a separate `images` array (raw base64, no data-URL prefix)
+function toOllamaMessages(hist) {
+  return hist.map(m => {
+    const msg = { role: m.role, content: fullTextFor(m) };
+    const imgs = (m.attachments || []).filter(a => a.type === 'image').map(a => a.dataUrl.split(',')[1]);
+    if (imgs.length) msg.images = imgs;
+    return msg;
+  });
+}
+
+// OpenAI-compatible (LM Studio) vision format: content array with image_url entries
+function toOpenAIVisionMessages(hist) {
+  return hist.map(m => {
+    const imgs = (m.attachments || []).filter(a => a.type === 'image');
+    const text = fullTextFor(m);
+    if (!imgs.length) return { role: m.role, content: text };
+    const content = [{ type: 'text', text }];
+    imgs.forEach(a => content.push({ type: 'image_url', image_url: { url: a.dataUrl } }));
+    return { role: m.role, content };
+  });
+}
+
+// Anthropic messages format: content array with base64 image blocks
+function toAnthropicMessages(hist) {
+  return hist.map(m => {
+    const imgs = (m.attachments || []).filter(a => a.type === 'image');
+    const text = fullTextFor(m);
+    if (!imgs.length) return { role: m.role, content: text };
+    const content = [];
+    imgs.forEach(a => {
+      const [prefix, data] = a.dataUrl.split(',');
+      const mediaType = prefix.match(/data:(.*);base64/)[1];
+      content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data } });
+    });
+    content.push({ type: 'text', text });
+    return { role: m.role, content };
+  });
+}
+
+function renderAttachmentChips() {
+  els.attachmentsBar.innerHTML = '';
+  updateInputTokenCount();
+  pendingAttachments.forEach((att, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    if (att.type === 'image') {
+      const img = document.createElement('img');
+      img.src = att.dataUrl;
+      chip.appendChild(img);
+    }
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = att.name;
+    const remove = document.createElement('span');
+    remove.className = 'remove';
+    remove.textContent = '×';
+    remove.addEventListener('click', () => {
+      pendingAttachments.splice(idx, 1);
+      renderAttachmentChips();
+    });
+    chip.appendChild(name);
+    chip.appendChild(remove);
+    els.attachmentsBar.appendChild(chip);
+  });
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    if (file.type.startsWith('image/')) {
+      reader.onload = () => resolve({ type: 'image', name: file.name, mime: file.type, dataUrl: reader.result });
+      reader.readAsDataURL(file);
+    } else {
+      reader.onload = () => resolve({ type: 'text', name: file.name, mime: file.type, content: reader.result });
+      reader.readAsText(file);
+    }
+  });
+}
+
+async function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  for (const file of files) {
+    try {
+      const att = await readFile(file);
+      pendingAttachments.push(att);
+    } catch (err) {
+      addMsg('system', `Could not read ${file.name}: ${err.message}`);
+    }
+  }
+  renderAttachmentChips();
+}
+
+els.attachBtn.addEventListener('click', () => els.fileInput.click());
+els.fileInput.addEventListener('change', (e) => {
+  handleFiles(e.target.files);
+  els.fileInput.value = '';
+});
+els.inputBar.addEventListener('dragover', (e) => { e.preventDefault(); els.inputBar.classList.add('dragover'); });
+els.inputBar.addEventListener('dragleave', () => els.inputBar.classList.remove('dragover'));
+els.inputBar.addEventListener('drop', (e) => {
+  e.preventDefault();
+  els.inputBar.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function loadSessionsFromStorage() {
+  try { return JSON.parse(localStorage.getItem('chatui_sessions') || '[]'); }
+  catch (_) { return []; }
+}
+
+function saveSessionsToStorage() {
+  localStorage.setItem('chatui_sessions', JSON.stringify(sessions));
+  localStorage.setItem('chatui_active_session', activeSessionId || '');
+}
+
+function estimateChars(hist) {
+  return hist.reduce((sum, m) => {
+    let n = (m.text || '').length;
+    (m.attachments || []).forEach(a => {
+      if (a.type === 'text') n += (a.content || '').length;
+      else n += 1500; // rough flat cost for an image attachment
+    });
+    return sum + n;
+  }, 0);
+}
+
+function updateSizeIndicator() {
+  const chars = estimateChars(history);
+  const approxTokens = Math.round(chars / 4);
+  els.sizeIndicator.textContent = chars > 0
+    ? `~${approxTokens.toLocaleString()} tokens (approx) in this chat`
+    : '';
+}
+
+function showToast(message, level = 'warn') {
+  els.toast.textContent = message;
+  els.toast.className = 'show ' + level;
+  clearTimeout(els.toast._timer);
+  els.toast._timer = setTimeout(() => els.toast.classList.remove('show'), 6000);
+}
+
+function checkSizeWarning(session) {
+  const chars = estimateChars(session.history);
+  const tier = chars >= DANGER_CHARS ? 2 : chars >= WARN_CHARS ? 1 : 0;
+  if (tier > (session.warnedTier || 0)) {
+    session.warnedTier = tier;
+    if (tier === 1) {
+      showToast('This chat is getting long (~' + Math.round(chars / 4).toLocaleString() +
+        ' tokens). Accuracy may start to drop on some local models — consider starting a new chat.', 'warn');
+    } else if (tier === 2) {
+      showToast('This chat is very large (~' + Math.round(chars / 4).toLocaleString() +
+        ' tokens). Many local models will truncate or lose context here — a new chat is recommended.', 'danger');
+    }
+  }
+}
+
+function sessionTitle(session) {
+  if (session.title) return session.title;
+  const firstUser = session.history.find(m => m.role === 'user');
+  if (!firstUser) return 'New Chat';
+
+  let base = (firstUser.text || '')
+    .replace(/```[\s\S]*?```/g, ' ')  // drop code blocks
+    .replace(/\s+/g, ' ')              // collapse whitespace/newlines
+    .trim();
+
+  if (!base && firstUser.attachments && firstUser.attachments.length) {
+    base = firstUser.attachments[0].name;
+  }
+  if (!base) return 'New Chat';
+
+  if (base.length <= 42) return base;
+  const cut = base.slice(0, 42);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 20 ? cut.slice(0, lastSpace) : cut) + '…';
+}
+
+function renderSessionList() {
+  els.sessionList.innerHTML = '';
+  sessions
+    .slice()
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .forEach(session => {
+      const item = document.createElement('div');
+      item.className = 'session-item' + (session.id === activeSessionId ? ' active' : '');
+      const title = document.createElement('span');
+      title.className = 'title';
+      title.textContent = sessionTitle(session);
+      title.addEventListener('click', () => switchSession(session.id));
+      title.addEventListener('dblclick', () => {
+        const newTitle = prompt('Rename chat', sessionTitle(session));
+        if (newTitle && newTitle.trim()) {
+          session.title = newTitle.trim();
+          saveSessionsToStorage();
+          renderSessionList();
+        }
+      });
+      const del = document.createElement('span');
+      del.className = 'del';
+      del.textContent = '×';
+      del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(session.id); });
+      item.appendChild(title);
+      item.appendChild(del);
+      els.sessionList.appendChild(item);
+    });
+}
+
+function persistCurrentSession() {
+  const session = sessions.find(s => s.id === activeSessionId);
+  if (!session) return;
+  session.history = history;
+  session.updatedAt = Date.now();
+  checkSizeWarning(session);
+  saveSessionsToStorage();
+  renderSessionList();
+  updateSizeIndicator();
+}
+
+function renderHistoryIntoChat() {
+  els.chat.innerHTML = '';
+  history.forEach(m => addMsg(m.role, m.text || '', m.attachments || []));
+}
+
+function switchSession(id) {
+  const session = sessions.find(s => s.id === id);
+  if (!session) return;
+  activeSessionId = id;
+  history = session.history || [];
+  pendingAttachments = [];
+  renderAttachmentChips();
+  renderHistoryIntoChat();
+  renderSessionList();
+  updateSizeIndicator();
+  saveSessionsToStorage();
+}
+
+function createNewSession() {
+  const session = { id: genId(), title: null, history: [], createdAt: Date.now(), updatedAt: Date.now(), warnedTier: 0 };
+  sessions.push(session);
+  switchSession(session.id);
+}
+
+function deleteSession(id) {
+  const idx = sessions.findIndex(s => s.id === id);
+  if (idx === -1) return;
+  sessions.splice(idx, 1);
+  if (activeSessionId === id) {
+    if (sessions.length === 0) createNewSession();
+    else switchSession(sessions[0].id);
+  } else {
+    saveSessionsToStorage();
+    renderSessionList();
+  }
+}
+
+function initSessions() {
+  sessions = loadSessionsFromStorage();
+  const savedActive = localStorage.getItem('chatui_active_session');
+  if (sessions.length === 0) {
+    createNewSession();
+  } else {
+    const target = sessions.find(s => s.id === savedActive) || sessions[0];
+    switchSession(target.id);
+  }
+}
+
+els.newChatBtn.addEventListener('click', createNewSession);
+
+async function sendMessage() {
+  const text = els.input.value.trim();
+  if (!text && pendingAttachments.length === 0) return;
+  const s = saveSettings();
+  els.input.value = '';
+  updateInputTokenCount();
+  const attachments = pendingAttachments;
+  pendingAttachments = [];
+  renderAttachmentChips();
+
+  addMsg('user', text, attachments);
+  history.push({ role: 'user', text, attachments });
+  persistCurrentSession();
+
+  const assistantDiv = addMsg('assistant', '');
+  els.sendBtn.disabled = true;
+  let acc = '';
+
+  const onDelta = (chunk) => {
+    acc += chunk;
+    renderMessageBubble(assistantDiv, 'assistant', acc, []);
+    els.chat.scrollTop = els.chat.scrollHeight;
+  };
+
+  try {
+    if (s.provider === 'ollama') {
+      const msgs = s.systemPrompt
+        ? [{ role: 'system', content: s.systemPrompt }, ...toOllamaMessages(history)]
+        : toOllamaMessages(history);
+      await streamOllama(s, msgs, onDelta);
+    } else if (s.provider === 'lmstudio') {
+      const msgs = s.systemPrompt
+        ? [{ role: 'system', content: s.systemPrompt }, ...toOpenAIVisionMessages(history)]
+        : toOpenAIVisionMessages(history);
+      await streamOpenAICompatible(s.lmstudioUrl, s.lmstudioModel, msgs, onDelta, s);
+    } else if (s.provider === 'anthropic') {
+      if (!s.anthropicKey) throw new Error('Set an Anthropic API key in settings.');
+      await streamAnthropic(s, toAnthropicMessages(history), onDelta);
+    }
+    history.push({ role: 'assistant', text: acc, attachments: [] });
+    persistCurrentSession();
+  } catch (err) {
+    assistantDiv.classList.add('error');
+    assistantDiv.innerHTML = '';
+    assistantDiv.textContent = 'Error: ' + err.message;
+  } finally {
+    els.sendBtn.disabled = false;
+    els.input.focus();
+  }
+}
+
+els.sendBtn.addEventListener('click', sendMessage);
+els.input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+function updateInputTokenCount() {
+  const chars = messageCharCount(els.input.value, pendingAttachments);
+  els.inputTokenCount.textContent = chars > 0 ? '~' + estimateTokens(chars) + ' tok' : '';
+}
+els.input.addEventListener('input', updateInputTokenCount);
+els.testBtn.addEventListener('click', testConnection);
+els.clearBtn.addEventListener('click', () => {
+  history = [];
+  pendingAttachments = [];
+  renderAttachmentChips();
+  els.chat.innerHTML = '';
+  const session = sessions.find(s => s.id === activeSessionId);
+  if (session) session.warnedTier = 0;
+  persistCurrentSession();
+});
+
+loadSettings();
+initSessions();
+</script>
+</body>
 </html>
