@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <title>Local Chat UI</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1115">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chat UI">
 <style>
   :root {
     --bg: #0f1115;
@@ -117,6 +124,53 @@
     background: none;
   }
   .msg.error { border-color: var(--danger); color: var(--danger); }
+  .thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .heart-wrap {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .heart-wrap::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--danger);
+    animation: heartbeat-ring 1.15s ease-out infinite;
+  }
+  .heart-icon {
+    position: relative;
+    width: 17px;
+    height: 17px;
+    fill: var(--danger);
+    z-index: 1;
+    animation: heartbeat-scale 1.15s ease-in-out infinite;
+    transform-origin: center;
+  }
+  .thinking-label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  @keyframes heartbeat-scale {
+    0%, 100% { transform: scale(1); }
+    14% { transform: scale(1.3); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.22); }
+    70% { transform: scale(1); }
+  }
+  @keyframes heartbeat-ring {
+    0% { transform: scale(0.6); opacity: 0.45; }
+    70%, 100% { transform: scale(1.9); opacity: 0; }
+  }
   #inputBar {
     border-top: 1px solid var(--border);
     padding: 14px 24px;
@@ -374,12 +428,16 @@
     <div class="hint" id="statusText"></div>
 
     <div style="text-align:right;">
-      <a href="#" id="aiSettingsChangePw" style="font-size:11px; color:var(--muted);">change password</a>
+      <a href="#" id="aiSettingsChangePw" style="font-size:11px; color:var(--muted);">change PIN</a>
     </div>
   </div>
 
   <div style="display:flex; gap:8px;">
     <button id="clearBtn" style="width:100%;">Clear chat</button>
+  </div>
+
+  <div style="text-align:center; margin-top:4px;">
+    <a href="https://mleadigitalsystems.blogspot.com/" target="_blank" rel="noopener noreferrer" style="font-size:11px; color:var(--muted);">About</a>
   </div>
 </div>
 
@@ -435,7 +493,15 @@ const els = {
 };
 
 // --- AI settings lock ---
-const AI_SETTINGS_PW_KEY = 'aiSettingsPasswordHash';
+// Default PIN hash is baked in (hash of "1628"). If you ever change the PIN via
+// "change password", the new hash overrides this in localStorage — so you're
+// still the only one who can set it, it's just no longer stuck at 1628 forever.
+const AI_SETTINGS_DEFAULT_PIN_HASH = 'e6c3b6f798b0e8d63406a281cf31ed72a005f9aaba8970ba3d008f2254001146';
+const AI_SETTINGS_PIN_KEY = 'aiSettingsPasswordHash';
+
+function getAiSettingsHash() {
+  return localStorage.getItem(AI_SETTINGS_PIN_KEY) || AI_SETTINGS_DEFAULT_PIN_HASH;
+}
 
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -443,23 +509,12 @@ async function sha256Hex(text) {
 }
 
 async function unlockAiSettings() {
-  const storedHash = localStorage.getItem(AI_SETTINGS_PW_KEY);
-  if (!storedHash) {
-    const pw = prompt('Set a password for AI Settings:');
-    if (!pw) return;
-    const confirmPw = prompt('Confirm password:');
-    if (pw !== confirmPw) { showToast('Passwords did not match.', 'danger'); return; }
-    localStorage.setItem(AI_SETTINGS_PW_KEY, await sha256Hex(pw));
-    showToast('Password set.', 'ok');
-    setAiSettingsVisible(true);
-    return;
-  }
-  const pw = prompt('Enter AI Settings password:');
+  const pw = prompt('Enter AI Settings PIN:');
   if (pw === null) return;
-  if (await sha256Hex(pw) === storedHash) {
+  if (await sha256Hex(pw) === getAiSettingsHash()) {
     setAiSettingsVisible(true);
   } else {
-    showToast('Incorrect password.', 'danger');
+    showToast('Incorrect PIN.', 'danger');
   }
 }
 
@@ -479,18 +534,15 @@ els.aiSettingsToggle.addEventListener('click', () => {
 
 els.aiSettingsChangePw.addEventListener('click', async (e) => {
   e.preventDefault();
-  const storedHash = localStorage.getItem(AI_SETTINGS_PW_KEY);
-  if (storedHash) {
-    const current = prompt('Enter current password:');
-    if (current === null) return;
-    if (await sha256Hex(current) !== storedHash) { showToast('Incorrect password.', 'danger'); return; }
-  }
-  const pw = prompt('Enter new password:');
+  const current = prompt('Enter current PIN:');
+  if (current === null) return;
+  if (await sha256Hex(current) !== getAiSettingsHash()) { showToast('Incorrect PIN.', 'danger'); return; }
+  const pw = prompt('Enter new PIN:');
   if (!pw) return;
-  const confirmPw = prompt('Confirm new password:');
-  if (pw !== confirmPw) { showToast('Passwords did not match.', 'danger'); return; }
-  localStorage.setItem(AI_SETTINGS_PW_KEY, await sha256Hex(pw));
-  showToast('Password updated.', 'ok');
+  const confirmPw = prompt('Confirm new PIN:');
+  if (pw !== confirmPw) { showToast('PINs did not match.', 'danger'); return; }
+  localStorage.setItem(AI_SETTINGS_PIN_KEY, await sha256Hex(pw));
+  showToast('PIN updated.', 'ok');
 });
 
 const DEFAULTS = {
@@ -674,6 +726,18 @@ function addMsg(role, content, attachments) {
   els.chat.appendChild(div);
   els.chat.scrollTop = els.chat.scrollHeight;
   return div;
+}
+
+function showThinking(div) {
+  div.innerHTML =
+    '<div class="thinking-indicator">' +
+      '<span class="heart-wrap">' +
+        '<svg class="heart-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+          '<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>' +
+        '</svg>' +
+      '</span>' +
+      '<span class="thinking-label">Thinking…</span>' +
+    '</div>';
 }
 
 function setStatus(ok, text) {
@@ -1104,6 +1168,7 @@ async function sendMessage() {
   persistCurrentSession();
 
   const assistantDiv = addMsg('assistant', '');
+  showThinking(assistantDiv);
   els.sendBtn.disabled = true;
   let acc = '';
 
@@ -1165,6 +1230,14 @@ els.clearBtn.addEventListener('click', () => {
 
 loadSettings();
 initSessions();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch((err) => {
+      console.warn('Service worker registration failed (needs https or localhost):', err);
+    });
+  });
+}
 </script>
 </body>
 </html>
