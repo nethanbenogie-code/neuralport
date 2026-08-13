@@ -129,47 +129,41 @@
     align-items: center;
     gap: 10px;
   }
-  .heart-wrap {
-    position: relative;
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .neuron-icon {
+    width: 32px;
+    height: 32px;
     flex-shrink: 0;
+    overflow: visible;
   }
-  .heart-wrap::before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: var(--danger);
-    animation: heartbeat-ring 1.15s ease-out infinite;
-  }
-  .heart-icon {
-    position: relative;
-    width: 17px;
-    height: 17px;
-    fill: var(--danger);
-    z-index: 1;
-    animation: heartbeat-scale 1.15s ease-in-out infinite;
+  .neuron-soma {
+    fill: var(--accent);
+    transform-box: fill-box;
     transform-origin: center;
+    animation: neuron-soma-pulse 1.6s ease-in-out infinite;
+  }
+  .neuron-ray {
+    stroke: var(--accent2);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: var(--len);
+    stroke-dashoffset: var(--len);
+    opacity: 0;
+    animation: neuron-ray-fire 1.6s ease-out infinite;
+    animation-delay: var(--delay);
   }
   .thinking-label {
     font-size: 13px;
     color: var(--muted);
   }
-  @keyframes heartbeat-scale {
-    0%, 100% { transform: scale(1); }
-    14% { transform: scale(1.3); }
-    28% { transform: scale(1); }
-    42% { transform: scale(1.22); }
-    70% { transform: scale(1); }
+  @keyframes neuron-soma-pulse {
+    0%, 100% { transform: scale(0.9); opacity: 0.7; }
+    50% { transform: scale(1.25); opacity: 1; }
   }
-  @keyframes heartbeat-ring {
-    0% { transform: scale(0.6); opacity: 0.45; }
-    70%, 100% { transform: scale(1.9); opacity: 0; }
+  @keyframes neuron-ray-fire {
+    0% { stroke-dashoffset: var(--len); opacity: 0; }
+    25% { stroke-dashoffset: 0; opacity: 1; }
+    55% { stroke-dashoffset: 0; opacity: 0.12; }
+    100% { stroke-dashoffset: var(--len); opacity: 0; }
   }
   #inputBar {
     border-top: 1px solid var(--border);
@@ -729,13 +723,26 @@ function addMsg(role, content, attachments) {
 }
 
 function showThinking(div) {
+  const rays = [
+    { x2: 52.0, y2: 30.0, len: 22, delay: 0 },
+    { x2: 42.3, y2: 40.3, len: 16, delay: 0.15 },
+    { x2: 34.3, y2: 54.6, len: 25, delay: 0.05 },
+    { x2: 23.0, y2: 42.1, len: 14, delay: 0.25 },
+    { x2: 11.2, y2: 36.8, len: 20, delay: 0.1 },
+    { x2: 5.6,  y2: 21.1, len: 26, delay: 0.3 },
+    { x2: 22.5, y2: 17.0, len: 15, delay: 0.02 },
+    { x2: 34.0, y2: 7.3,  len: 23, delay: 0.2 },
+    { x2: 43.8, y2: 18.4, len: 18, delay: 0.12 },
+  ];
+  const rayLines = rays.map(r =>
+    `<line class="neuron-ray" x1="30" y1="30" x2="${r.x2}" y2="${r.y2}" style="--len:${r.len};--delay:${r.delay}s"></line>`
+  ).join('');
   div.innerHTML =
     '<div class="thinking-indicator">' +
-      '<span class="heart-wrap">' +
-        '<svg class="heart-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-          '<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>' +
-        '</svg>' +
-      '</span>' +
+      '<svg class="neuron-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">' +
+        rayLines +
+        '<circle class="neuron-soma" cx="30" cy="30" r="4"></circle>' +
+      '</svg>' +
       '<span class="thinking-label">Thinking…</span>' +
     '</div>';
 }
