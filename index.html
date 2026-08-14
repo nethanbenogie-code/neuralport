@@ -432,6 +432,8 @@
         <option value="ollama">Ollama (local / cloud model)</option>
         <option value="lmstudio">LM Studio</option>
         <option value="anthropic">Anthropic</option>
+        <option value="openrouter">OpenRouter</option>
+        <option value="nvidianim">NVIDIA NIM</option>
       </select>
     </div>
 
@@ -447,6 +449,22 @@
       <input id="lmstudioUrl" placeholder="http://localhost:1234/v1">
       <label>Model</label>
       <input id="lmstudioModel" placeholder="local-model">
+    </div>
+
+    <div class="provider-block" data-provider="openrouter">
+      <label>OpenRouter API key</label>
+      <input id="openrouterKey" type="password" placeholder="sk-or-...">
+      <label>Model</label>
+      <input id="openrouterModel" placeholder="nvidia/nemotron-3-ultra-550b-a55b:free">
+      <div class="hint">Key is stored only in this browser's localStorage.</div>
+    </div>
+
+    <div class="provider-block" data-provider="nvidianim">
+      <label>NVIDIA API key</label>
+      <input id="nvidianimKey" type="password" placeholder="nvapi-...">
+      <label>Model</label>
+      <input id="nvidianimModel" placeholder="nvidia/nemotron-3-ultra-550b-a55b">
+      <div class="hint">Key is stored only in this browser's localStorage.</div>
     </div>
 
     <div class="provider-block" data-provider="anthropic">
@@ -521,6 +539,10 @@ const els = {
   lmstudioModel: document.getElementById('lmstudioModel'),
   anthropicKey: document.getElementById('anthropicKey'),
   anthropicModel: document.getElementById('anthropicModel'),
+  openrouterKey: document.getElementById('openrouterKey'),
+  openrouterModel: document.getElementById('openrouterModel'),
+  nvidianimKey: document.getElementById('nvidianimKey'),
+  nvidianimModel: document.getElementById('nvidianimModel'),
   systemPrompt: document.getElementById('systemPrompt'),
   appTitle: document.getElementById('appTitle'),
   temperature: document.getElementById('temperature'),
@@ -629,6 +651,10 @@ const DEFAULTS = {
   lmstudioModel: 'local-model',
   anthropicKey: '',
   anthropicModel: 'claude-sonnet-5',
+  openrouterKey: '',
+  openrouterModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+  nvidianimKey: '',
+  nvidianimModel: 'nvidia/nemotron-3-ultra-550b-a55b',
   systemPrompt: '',
   temperature: 0.7,
   topP: 1,
@@ -656,6 +682,10 @@ function loadSettings() {
   els.lmstudioModel.value = s.lmstudioModel;
   els.anthropicKey.value = s.anthropicKey;
   els.anthropicModel.value = s.anthropicModel;
+  els.openrouterKey.value = s.openrouterKey;
+  els.openrouterModel.value = s.openrouterModel;
+  els.nvidianimKey.value = s.nvidianimKey;
+  els.nvidianimModel.value = s.nvidianimModel;
   els.systemPrompt.value = s.systemPrompt;
   els.temperature.value = s.temperature;
   els.topP.value = s.topP;
@@ -674,6 +704,10 @@ function saveSettings() {
     lmstudioModel: els.lmstudioModel.value.trim(),
     anthropicKey: els.anthropicKey.value.trim(),
     anthropicModel: els.anthropicModel.value.trim(),
+    openrouterKey: els.openrouterKey.value.trim(),
+    openrouterModel: els.openrouterModel.value.trim(),
+    nvidianimKey: els.nvidianimKey.value.trim(),
+    nvidianimModel: els.nvidianimModel.value.trim(),
     systemPrompt: els.systemPrompt.value,
     temperature: parseFloat(els.temperature.value),
     topP: parseFloat(els.topP.value),
@@ -695,7 +729,8 @@ function updateProviderBlocks() {
 }
 
 [els.provider, els.ollamaUrl, els.ollamaModel, els.lmstudioUrl, els.lmstudioModel,
- els.anthropicKey, els.anthropicModel, els.systemPrompt, els.temperature, els.topP, els.maxTokens].forEach(el => {
+ els.anthropicKey, els.anthropicModel, els.openrouterKey, els.openrouterModel,
+ els.nvidianimKey, els.nvidianimModel, els.systemPrompt, els.temperature, els.topP, els.maxTokens].forEach(el => {
   el.addEventListener('change', () => { saveSettings(); updateProviderBlocks(); });
 });
 els.appTitle.addEventListener('blur', saveSettings);
@@ -849,6 +884,20 @@ async function testConnection() {
     } else if (s.provider === 'anthropic') {
       if (!s.anthropicKey) throw new Error('No API key set');
       setStatus(true, 'Key set (verified on first message).');
+    } else if (s.provider === 'openrouter') {
+      if (!s.openrouterKey) throw new Error('No API key set');
+      const r = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { 'Authorization': 'Bearer ' + s.openrouterKey }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      setStatus(true, 'OpenRouter reachable.');
+    } else if (s.provider === 'nvidianim') {
+      if (!s.nvidianimKey) throw new Error('No API key set');
+      const r = await fetch('https://integrate.api.nvidia.com/v1/models', {
+        headers: { 'Authorization': 'Bearer ' + s.nvidianimKey }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      setStatus(true, 'NVIDIA NIM reachable.');
     }
   } catch (err) {
     setStatus(false, 'Failed: ' + err.message);
@@ -885,16 +934,18 @@ async function streamOllama(s, messages, onDelta) {
   }
 }
 
-async function streamOpenAICompatible(baseUrl, model, messages, onDelta, gen) {
+async function streamOpenAICompatible(baseUrl, model, messages, onDelta, gen, apiKey) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
   const res = await fetch(baseUrl.replace(/\/$/, '') + '/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       model, messages, stream: true,
       temperature: gen.temperature, top_p: gen.topP, max_tokens: gen.maxTokens
     })
   });
-  if (!res.ok || !res.body) throw new Error('LM Studio HTTP ' + res.status);
+  if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
@@ -1282,6 +1333,18 @@ async function sendMessage() {
     } else if (s.provider === 'anthropic') {
       if (!s.anthropicKey) throw new Error('Set an Anthropic API key in settings.');
       await streamAnthropic(s, toAnthropicMessages(history), onDelta);
+    } else if (s.provider === 'openrouter') {
+      if (!s.openrouterKey) throw new Error('Set an OpenRouter API key in settings.');
+      const msgs = s.systemPrompt
+        ? [{ role: 'system', content: s.systemPrompt }, ...toOpenAIVisionMessages(history)]
+        : toOpenAIVisionMessages(history);
+      await streamOpenAICompatible('https://openrouter.ai/api/v1', s.openrouterModel, msgs, onDelta, s, s.openrouterKey);
+    } else if (s.provider === 'nvidianim') {
+      if (!s.nvidianimKey) throw new Error('Set an NVIDIA API key in settings.');
+      const msgs = s.systemPrompt
+        ? [{ role: 'system', content: s.systemPrompt }, ...toOpenAIVisionMessages(history)]
+        : toOpenAIVisionMessages(history);
+      await streamOpenAICompatible('https://integrate.api.nvidia.com/v1', s.nvidianimModel, msgs, onDelta, s, s.nvidianimKey);
     }
     history.push({ role: 'assistant', text: acc, attachments: [] });
     persistCurrentSession();
